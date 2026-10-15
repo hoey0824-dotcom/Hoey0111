@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WorkDocs Studio - Technical Workspace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; }
+    .prose pre { background: #1e293b; color: #f8fafc; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; }
+    .prose code { background: #f1f5f9; color: #0f172a; padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-size: 0.875em; }
+    .prose pre code { background: transparent; color: inherit; padding: 0; }
+    .prose p { margin-bottom: 0.65rem; line-height: 1.65; }
+    .prose ul, .prose ol { margin-left: 1.25rem; margin-bottom: 0.65rem; list-style: disc; }
+    .prose table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    .prose th, .prose td { border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; text-align: left; }
+    .prose th { background: #f8fafc; font-weight: 600; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+  <!-- 상단 네비게이션 바 -->
+  <header class="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 rounded bg-slate-800 text-white flex items-center justify-center font-bold text-xs">WD</div>
+      <div>
+        <h1 class="text-sm font-bold text-slate-900">WorkDocs Studio <span class="text-xs font-normal text-slate-400 ml-1">v2.4 Internal Wiki & Drafts</span></h1>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button id="readerModeBtn" onclick="toggleReaderMode()" class="px-3 py-1.5 text-xs font-medium rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition">
+        문서 뷰 모드: OFF
+      </button>
+      <button onclick="clearChat()" class="px-3 py-1.5 text-xs font-medium rounded border border-slate-200 hover:bg-slate-100 text-slate-600 transition">
+        대화 초기화
+      </button>
+      <button onclick="openSettings()" class="px-3 py-1.5 text-xs font-semibold rounded bg-slate-800 hover:bg-slate-700 text-white transition">
+        API / 설정
+      </button>
+    </div>
+  </header>
+
+  <!-- 빠른 템플릿 바 -->
+  <div class="bg-slate-100 border-b border-slate-200 px-4 py-2 flex items-center gap-2 overflow-x-auto shrink-0">
+    <span class="text-xs font-semibold text-slate-500 shrink-0 mr-1">작업 템플릿:</span>
+    <button onclick="applyTemplate('summary')" class="px-2.5 py-1 text-xs bg-white border border-slate-300 rounded hover:border-slate-500 shrink-0">핵심 요약 정리</button>
+    <button onclick="applyTemplate('report')" class="px-2.5 py-1 text-xs bg-white border border-slate-300 rounded hover:border-slate-500 shrink-0">보고서/기안문 초안</button>
+    <button onclick="applyTemplate('email')" class="px-2.5 py-1 text-xs bg-white border border-slate-300 rounded hover:border-slate-500 shrink-0">비즈니스 이메일</button>
+    <button onclick="applyTemplate('translate')" class="px-2.5 py-1 text-xs bg-white border border-slate-300 rounded hover:border-slate-500 shrink-0">전문 영한/한영 번역</button>
+    <button onclick="applyTemplate('code')" class="px-2.5 py-1 text-xs bg-white border border-slate-300 rounded hover:border-slate-500 shrink-0">코드/수식 검토</button>
+  </div>
+
+  <!-- 메인 워크스페이스 (좌: AI 문서/대화 영역, 우: 스크래치패드) -->
+  <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+    
+    <!-- 좌측: AI 질의응답 및 문서 뷰 -->
+    <section class="flex-1 flex flex-col border-r border-slate-200 bg-white overflow-hidden">
+      <div id="chatContainer" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+        <div class="border-l-4 border-slate-800 pl-4 py-1 bg-slate-50 rounded-r">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">System Ready</p>
+          <p class="text-sm text-slate-700 mt-1">
+            우측 상단 <strong>[API / 설정]</strong>에서 Google AI Studio API 키를 등록하면 즉시 문서를 작성하고 질의할 수 있습니다. 키는 현재 브라우저에만 안전하게 보관됩니다.
+          </p>
+        </div>
+      </div>
+
+      <!-- 하단 입력창 -->
+      <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200">
+        <div class="flex gap-2">
+          <textarea
+            id="userInput"
+            rows="2"
+            placeholder="질문이나 정리할 텍스트를 입력하세요 (Enter로 전송, Shift+Enter 줄바꿈)"
+            class="flex-1 rounded border border-slate-300 p-2.5 text-sm focus:outline-none focus:border-slate-700 resize-none bg-white"
+            onkeydown="handleKeydown(event)"
+          ></textarea>
+          <button
+            id="sendBtn"
+            onclick="sendMessage()"
+            class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded shrink-0 transition"
+          >
+            실행
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 우측: 스마트 스크래치패드 & 메모장 -->
+    <aside class="w-full lg:w-96 flex flex-col bg-slate-50 border-t lg:border-t-0 border-slate-200 h-64 lg:h-auto shrink-0">
+      <div class="px-4 py-2.5 bg-white border-b border-slate-200 flex items-center justify-between">
+        <span class="text-xs font-bold text-slate-700">스마트 스크래치패드 (메모장)</span>
+        <div class="flex gap-1.5">
+          <button onclick="refineNote('문장을 비즈니스 보고서 톤으로 간결하게 다듬어줘.')" class="px-2 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded">문장 다듬기</button>
+          <button onclick="refineNote('핵심 내용을 3줄 요약해서 하단에 추가해줘.')" class="px-2 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded">3줄 요약</button>
+          <button onclick="copyScratchpad()" class="px-2 py-1 text-[11px] bg-slate-800 text-white rounded">전체 복사</button>
+        </div>
+      </div>
+      <textarea
+        id="scratchpad"
+        oninput="updateCharCount()"
+        placeholder="답변 옆의 [메모에 추가]를 누르거나 자유롭게 초안을 작성하세요. 내용은 브라우저에 자동 저장됩니다."
+        class="flex-1 p-4 text-sm bg-transparent focus:outline-none resize-none leading-relaxed text-slate-800"
+      ></textarea>
+      <div class="px-4 py-2 bg-white border-t border-slate-200 flex justify-between text-xs text-slate-500">
+        <span id="charCount">공백 포함 0자 | 공백 제외 0자</span>
+        <button onclick="clearScratchpad()" class="text-slate-400 hover:text-red-500">비우기</button>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- API 설정 모달 -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg max-w-md w-full p-6 shadow-xl space-y-4">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h2 class="text-base font-bold text-slate-900">API 키 및 모델 설정</h2>
+        <button onclick="closeSettings()" class="text-slate-400 hover:text-slate-600 text-sm">닫기</button>
+      </div>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Gemini API Key</label>
+          <input
+            id="apiKeyInput"
+            type="password"
+            placeholder="AIzaSy..."
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-800"
+          />
+          <p class="text-[11px] text-slate-500 mt-1">
+            Google AI Studio에서 발급받은 키를 입력하세요. 브라우저 LocalStorage에만 저장됩니다.
+          </p>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">사용 모델</label>
+          <select id="modelSelect" class="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white">
+            <option value="gemini-2.5-flash">gemini-2.5-flash (빠른 응답 · 범용 추천)</option>
+            <option value="gemini-2.5-pro">gemini-2.5-pro (고난도 추론 · 심층 분석)</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeSettings()" class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded">취소</button>
+        <button onclick="saveSettings()" class="px-4 py-2 text-xs font-semibold bg-slate-900 text-white rounded hover:bg-slate-800">저장하기</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let conversationHistory = [];
+    let isReaderMode = false;
+
+    const templates = {
+      summary: "다음 문서의 핵심 내용을 불릿 포인트로 요약하고 주요 시사점을 정리해 주세요:\n\n",
+      report: "다음 주제를 바탕으로 명확하고 구조화된 업무 보고서 초안을 작성해 주세요:\n\n",
+      email: "다음 내용을 바탕으로 정중하고 명확한 비즈니스 이메일 초안을 작성해 주세요:\n\n",
+      translate: "다음 텍스트를 비즈니스 및 기술 맥락에 맞게 자연스러운 한국어(또는 영어)로 번역해 주세요:\n\n",
+      code: "다음 코드 또는 수식의 오류를 점검하고 개선 방안을 설명해 주세요:\n\n"
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedPad = localStorage.getItem('wd_scratchpad') || '';
+      document.getElementById('scratchpad').value = savedPad;
+      updateCharCount();
+    });
+
+    function toggleReaderMode() {
+      isReaderMode = !isReaderMode;
+      const btn = document.getElementById('readerModeBtn');
+      btn.textContent = isReaderMode ? '문서 뷰 모드: ON' : '문서 뷰 모드: OFF';
+      btn.className = isReaderMode
+        ? 'px-3 py-1.5 text-xs font-semibold rounded border border-slate-800 bg-slate-800 text-white transition'
+        : 'px-3 py-1.5 text-xs font-medium rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition';
+      renderMessages();
+    }
+
+    function applyTemplate(type) {
+      const input = document.getElementById('userInput');
+      input.value = templates[type] || '';
+      input.focus();
+    }
+
+    function openSettings() {
+      document.getElementById('apiKeyInput').value = localStorage.getItem('wd_api_key') || '';
+      document.getElementById('modelSelect').value = localStorage.getItem('wd_model') || 'gemini-2.5-flash';
+      document.getElementById('settingsModal').classList.remove('hidden');
+      document.getElementById('settingsModal').classList.add('flex');
+    }
+
+    function closeSettings() {
+      document.getElementById('settingsModal').classList.add('hidden');
+      document.getElementById('settingsModal').classList.remove('flex');
+    }
+
+    function saveSettings() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      const model = document.getElementById('modelSelect').value;
+      localStorage.setItem('wd_api_key', key);
+      localStorage.setItem('wd_model', model);
+      closeSettings();
+    }
+
+    function handleKeydown(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+
+    async function sendMessage(customPrompt) {
+      const inputEl = document.getElementById('userInput');
+      const text = customPrompt || inputEl.value.trim();
+      if (!text) return;
+
+      const apiKey = localStorage.getItem('wd_api_key');
+      const model = localStorage.getItem('wd_model') || 'gemini-2.5-flash';
+
+      if (!apiKey) {
+        openSettings();
+        alert('먼저 Google AI Studio에서 발급받은 Gemini API 키를 입력해 주세요.');
+        return;
+      }
+
+      if (!customPrompt) inputEl.value = '';
+      conversationHistory.push({ role: 'user', parts: [{ text }] });
+      renderMessages(true);
+
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: conversationHistory })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '응답을 생성하지 못했습니다.';
+        conversationHistory.push({ role: 'model', parts: [{ text: reply }] });
+      } catch (err) {
+        conversationHistory.push({ role: 'model', parts: [{ text: `**오류 발생:** ${err.message}` }] });
+      }
+      renderMessages(false);
+    }
+
+    function renderMessages(isLoading = false) {
+      const container = document.getElementById('chatContainer');
+      container.innerHTML = '';
+
+      conversationHistory.forEach((item, idx) => {
+        const isUser = item.role === 'user';
+        const rawText = item.parts[0].text;
+        const wrapper = document.createElement('div');
+
+        if (isReaderMode) {
+          wrapper.className = 'border-b border-slate-200 pb-4';
+          wrapper.innerHTML = `
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-bold uppercase tracking-wider ${isUser ? 'text-slate-500' : 'text-blue-700'}">
+                ${isUser ? '질의 내역 (Query)' : '분석 문서 (Document Output)'}
+              </span>
+              ${!isUser ? `<button onclick="appendToPad(${idx})" class="text-xs text-slate-500 hover:text-slate-900 border px-2 py-0.5 rounded">메모에 추가</button>` : ''}
+            </div>
+            <div class="prose max-w-none text-sm text-slate-800">${marked.parse(rawText)}</div>
+          `;
+        } else {
+          wrapper.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+          wrapper.innerHTML = `
+            <div class="max-w-3xl rounded-lg p-3.5 ${isUser ? 'bg-slate-800 text-white text-sm' : 'bg-slate-100 text-slate-800 border border-slate-200'}">
+              ${!isUser ? `
+                <div class="flex justify-between items-center mb-2 pb-1 border-b border-slate-200">
+                  <span class="text-[11px] font-bold text-slate-500">AI Assistant</span>
+                  <button onclick="appendToPad(${idx})" class="text-[11px] bg-white border border-slate-300 px-2 py-0.5 rounded hover:bg-slate-50">메모에 추가</button>
+                </div>
+              ` : ''}
+              <div class="${isUser ? 'whitespace-pre-wrap' : 'prose max-w-none text-sm'}">${isUser ? rawText : marked.parse(rawText)}</div>
+            </div>
+          `;
+        }
+        container.appendChild(wrapper);
+      });
+
+      if (isLoading) {
+        const loader = document.createElement('div');
+        loader.className = 'text-xs text-slate-400 animate-pulse py-2';
+        loader.textContent = '문서를 생성하고 있습니다...';
+        container.appendChild(loader);
+      }
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendToPad(idx) {
+      const text = conversationHistory[idx]?.parts?.[0]?.text || '';
+      const pad = document.getElementById('scratchpad');
+      pad.value = pad.value ? pad.value + '\n\n---\n\n' + text : text;
+      updateCharCount();
+    }
+
+    function refineNote(instruction) {
+      const pad = document.getElementById('scratchpad').value.trim();
+      if (!pad) return alert('스크래치패드에 먼저 내용을 입력하거나 추가해 주세요.');
+      sendMessage(`${instruction}\n\n[대상 텍스트]\n${pad}`);
+    }
+
+    function updateCharCount() {
+      const val = document.getElementById('scratchpad').value;
+      localStorage.setItem('wd_scratchpad', val);
+      const withSpace = val.length;
+      const noSpace = val.replace(/\s/g, '').length;
+      document.getElementById('charCount').textContent = `공백 포함 ${withSpace}자 | 공백 제외 ${noSpace}자`;
+    }
+
+    function copyScratchpad() {
+      const pad = document.getElementById('scratchpad');
+      navigator.clipboard.writeText(pad.value);
+      alert('스크래치패드 내용이 복사되었습니다.');
+    }
+
+    function clearScratchpad() {
+      if (confirm('스크래치패드 내용을 모두 지우시겠습니까?')) {
+        document.getElementById('scratchpad').value = '';
+        updateCharCount();
+      }
+    }
+
+    function clearChat() {
+      conversationHistory = [];
+      renderMessages();
+    }
+  </script>
+</body>
+</html>
