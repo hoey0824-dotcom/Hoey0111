@@ -26,7 +26,7 @@
     <div class="flex items-center gap-3">
       <div class="w-7 h-7 rounded bg-slate-800 text-white flex items-center justify-center font-bold text-xs">WD</div>
       <div>
-        <h1 class="text-sm font-bold text-slate-900">WorkDocs Studio <span class="text-xs font-normal text-slate-400 ml-1">v2.4 Internal Wiki & Drafts</span></h1>
+        <h1 class="text-sm font-bold text-slate-900">WorkDocs Studio <span id="currentModelBadge" class="text-xs font-normal text-slate-400 ml-1">gemini-3.1-pro-preview</span></h1>
       </div>
     </div>
 
@@ -53,7 +53,7 @@
     <button onclick="applyTemplate('code')" class="px-2.5 py-1 text-xs bg-white border border-slate-300 rounded hover:border-slate-500 shrink-0">코드/수식 검토</button>
   </div>
 
-  <!-- 메인 워크스페이스 (좌: AI 문서/대화 영역, 우: 스크래치패드) -->
+  <!-- 메인 워크스페이스 -->
   <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
     
     <!-- 좌측: AI 질의응답 및 문서 뷰 -->
@@ -62,7 +62,7 @@
         <div class="border-l-4 border-slate-800 pl-4 py-1 bg-slate-50 rounded-r">
           <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">System Ready</p>
           <p class="text-sm text-slate-700 mt-1">
-            우측 상단 <strong>[API / 설정]</strong>에서 Google AI Studio API 키를 등록하면 즉시 문서를 작성하고 질의할 수 있습니다. 키는 현재 브라우저에만 안전하게 보관됩니다.
+            최신 <strong>gemini-3.1-pro-preview</strong> 모델이 기본 적용되었습니다. 우측 상단 <strong>[API / 설정]</strong>에서 모델을 변경하거나 직접 입력할 수 있습니다.
           </p>
         </div>
       </div>
@@ -128,16 +128,26 @@
             placeholder="AIzaSy..."
             class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-800"
           />
-          <p class="text-[11px] text-slate-500 mt-1">
-            Google AI Studio에서 발급받은 키를 입력하세요. 브라우저 LocalStorage에만 저장됩니다.
-          </p>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">사용 모델</label>
-          <select id="modelSelect" class="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white">
-            <option value="gemini-2.5-flash">gemini-2.5-flash (빠른 응답 · 범용 추천)</option>
-            <option value="gemini-2.5-pro">gemini-2.5-pro (고난도 추론 · 심층 분석)</option>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">추천 모델 선택</label>
+          <select id="modelSelect" onchange="syncCustomModel()" class="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white">
+            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (최신 Pro · 고난도 추론/추천)</option>
+            <option value="gemini-3-flash-preview">gemini-3-flash-preview (최신 Flash · 빠른 응답)</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash (기존 호환용 Flash)</option>
           </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">모델 ID 직접 입력 (신규 모델 출시 시 직접 수정 가능)</label>
+          <input
+            id="customModelInput"
+            type="text"
+            placeholder="gemini-3.1-pro-preview"
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-800 bg-slate-50"
+          />
+          <p class="text-[11px] text-slate-500 mt-1">
+            추후 구글이 새 모델을 출시하면 코드 수정 없이 위 칸에 새 모델 이름만 입력해 바로 쓸 수 있습니다.
+          </p>
         </div>
       </div>
       <div class="flex justify-end gap-2 pt-2">
@@ -150,6 +160,7 @@
   <script>
     let conversationHistory = [];
     let isReaderMode = false;
+    const DEFAULT_MODEL = 'gemini-3.1-pro-preview';
 
     const templates = {
       summary: "다음 문서의 핵심 내용을 불릿 포인트로 요약하고 주요 시사점을 정리해 주세요:\n\n",
@@ -163,7 +174,20 @@
       const savedPad = localStorage.getItem('wd_scratchpad') || '';
       document.getElementById('scratchpad').value = savedPad;
       updateCharCount();
+
+      // 이전에 구버전(gemini-2.5-pro)이 저장되어 있었다면 자동으로 최신 버전으로 교체
+      let savedModel = localStorage.getItem('wd_model');
+      if (!savedModel || savedModel === 'gemini-2.5-pro') {
+        savedModel = DEFAULT_MODEL;
+        localStorage.setItem('wd_model', savedModel);
+      }
+      document.getElementById('currentModelBadge').textContent = savedModel;
     });
+
+    function syncCustomModel() {
+      const selected = document.getElementById('modelSelect').value;
+      document.getElementById('customModelInput').value = selected;
+    }
 
     function toggleReaderMode() {
       isReaderMode = !isReaderMode;
@@ -182,8 +206,10 @@
     }
 
     function openSettings() {
+      const currentModel = localStorage.getItem('wd_model') || DEFAULT_MODEL;
       document.getElementById('apiKeyInput').value = localStorage.getItem('wd_api_key') || '';
-      document.getElementById('modelSelect').value = localStorage.getItem('wd_model') || 'gemini-2.5-flash';
+      document.getElementById('modelSelect').value = currentModel;
+      document.getElementById('customModelInput').value = currentModel;
       document.getElementById('settingsModal').classList.remove('hidden');
       document.getElementById('settingsModal').classList.add('flex');
     }
@@ -195,9 +221,10 @@
 
     function saveSettings() {
       const key = document.getElementById('apiKeyInput').value.trim();
-      const model = document.getElementById('modelSelect').value;
+      const model = document.getElementById('customModelInput').value.trim() || DEFAULT_MODEL;
       localStorage.setItem('wd_api_key', key);
       localStorage.setItem('wd_model', model);
+      document.getElementById('currentModelBadge').textContent = model;
       closeSettings();
     }
 
@@ -214,7 +241,7 @@
       if (!text) return;
 
       const apiKey = localStorage.getItem('wd_api_key');
-      const model = localStorage.getItem('wd_model') || 'gemini-2.5-flash';
+      const model = localStorage.getItem('wd_model') || DEFAULT_MODEL;
 
       if (!apiKey) {
         openSettings();
