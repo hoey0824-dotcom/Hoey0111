@@ -62,7 +62,7 @@
         <div class="border-l-4 border-slate-800 pl-4 py-1 bg-slate-50 rounded-r">
           <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">System Ready</p>
           <p class="text-sm text-slate-700 mt-1">
-            최신 <strong>gemini-3.1-pro-preview</strong> 모델이 기본 적용되었습니다. 우측 상단 <strong>[API / 설정]</strong>에서 모델을 변경하거나 직접 입력할 수 있습니다.
+            회사 PC에서 <strong>Failed to fetch</strong> 오류가 발생하면 우측 상단 <strong>[API / 설정]</strong>에서 공백 없이 API 키를 다시 입력하거나, <strong>우회 중계 URL</strong>을 등록해 주세요.
           </p>
         </div>
       </div>
@@ -116,12 +116,12 @@
   <div id="settingsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
     <div class="bg-white rounded-lg max-w-md w-full p-6 shadow-xl space-y-4">
       <div class="flex justify-between items-center border-b pb-3">
-        <h2 class="text-base font-bold text-slate-900">API 키 및 모델 설정</h2>
+        <h2 class="text-base font-bold text-slate-900">API 키 및 우회 설정</h2>
         <button onclick="closeSettings()" class="text-slate-400 hover:text-slate-600 text-sm">닫기</button>
       </div>
       <div class="space-y-3">
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Gemini API Key</label>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Gemini API Key (공백 자동 제거)</label>
           <input
             id="apiKeyInput"
             type="password"
@@ -132,21 +132,30 @@
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">추천 모델 선택</label>
           <select id="modelSelect" onchange="syncCustomModel()" class="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white">
-            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (최신 Pro · 고난도 추론/추천)</option>
+            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (최신 Pro · 추천)</option>
             <option value="gemini-3-flash-preview">gemini-3-flash-preview (최신 Flash · 빠른 응답)</option>
-            <option value="gemini-2.5-flash">gemini-2.5-flash (기존 호환용 Flash)</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash (호환용 Flash)</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">모델 ID 직접 입력 (신규 모델 출시 시 직접 수정 가능)</label>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">모델 ID 직접 입력</label>
           <input
             id="customModelInput"
             type="text"
             placeholder="gemini-3.1-pro-preview"
             class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-800 bg-slate-50"
           />
+        </div>
+        <div class="pt-1 border-t border-slate-200">
+          <label class="block text-xs font-semibold text-blue-700 mb-1">우회 중계 URL (사내 방화벽 차단 시 입력)</label>
+          <input
+            id="proxyUrlInput"
+            type="text"
+            placeholder="https://script.google.com/macros/s/.../exec (선택사항)"
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-600"
+          />
           <p class="text-[11px] text-slate-500 mt-1">
-            추후 구글이 새 모델을 출시하면 코드 수정 없이 위 칸에 새 모델 이름만 입력해 바로 쓸 수 있습니다.
+            비워두면 구글 서버로 직접 연결하며, 중계 URL을 입력하면 사내 방화벽을 우회해 연결합니다.
           </p>
         </div>
       </div>
@@ -175,8 +184,7 @@
       document.getElementById('scratchpad').value = savedPad;
       updateCharCount();
 
-      // 이전에 구버전(gemini-2.5-pro)이 저장되어 있었다면 자동으로 최신 버전으로 교체
-      let savedModel = localStorage.getItem('wd_model');
+      let savedModel = (localStorage.getItem('wd_model') || '').replace(/\s+/g, '');
       if (!savedModel || savedModel === 'gemini-2.5-pro') {
         savedModel = DEFAULT_MODEL;
         localStorage.setItem('wd_model', savedModel);
@@ -206,10 +214,11 @@
     }
 
     function openSettings() {
-      const currentModel = localStorage.getItem('wd_model') || DEFAULT_MODEL;
-      document.getElementById('apiKeyInput').value = localStorage.getItem('wd_api_key') || '';
+      const currentModel = (localStorage.getItem('wd_model') || DEFAULT_MODEL).replace(/\s+/g, '');
+      document.getElementById('apiKeyInput').value = (localStorage.getItem('wd_api_key') || '').replace(/\s+/g, '');
       document.getElementById('modelSelect').value = currentModel;
       document.getElementById('customModelInput').value = currentModel;
+      document.getElementById('proxyUrlInput').value = (localStorage.getItem('wd_proxy_url') || '').trim();
       document.getElementById('settingsModal').classList.remove('hidden');
       document.getElementById('settingsModal').classList.add('flex');
     }
@@ -220,10 +229,12 @@
     }
 
     function saveSettings() {
-      const key = document.getElementById('apiKeyInput').value.trim();
-      const model = document.getElementById('customModelInput').value.trim() || DEFAULT_MODEL;
+      const key = document.getElementById('apiKeyInput').value.replace(/\s+/g, '');
+      const model = document.getElementById('customModelInput').value.replace(/\s+/g, '') || DEFAULT_MODEL;
+      const proxyUrl = document.getElementById('proxyUrlInput').value.trim();
       localStorage.setItem('wd_api_key', key);
       localStorage.setItem('wd_model', model);
+      localStorage.setItem('wd_proxy_url', proxyUrl);
       document.getElementById('currentModelBadge').textContent = model;
       closeSettings();
     }
@@ -240,8 +251,9 @@
       const text = customPrompt || inputEl.value.trim();
       if (!text) return;
 
-      const apiKey = localStorage.getItem('wd_api_key');
-      const model = localStorage.getItem('wd_model') || DEFAULT_MODEL;
+      const apiKey = (localStorage.getItem('wd_api_key') || '').replace(/\s+/g, '');
+      const model = (localStorage.getItem('wd_model') || DEFAULT_MODEL).replace(/\s+/g, '');
+      const proxyUrl = (localStorage.getItem('wd_proxy_url') || '').trim();
 
       if (!apiKey) {
         openSettings();
@@ -254,18 +266,33 @@
       renderMessages(true);
 
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: conversationHistory })
-        });
+        let res;
+        if (proxyUrl) {
+          // 우회 중계 서버(Google Apps Script 등) 사용 시 CORS 프리플라이트 방지를 위해 text/plain 전송
+          res = await fetch(proxyUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ apiKey, model, contents: conversationHistory })
+          });
+        } else {
+          res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: conversationHistory })
+          });
+        }
+
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
 
         const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '응답을 생성하지 못했습니다.';
         conversationHistory.push({ role: 'model', parts: [{ text: reply }] });
       } catch (err) {
-        conversationHistory.push({ role: 'model', parts: [{ text: `**오류 발생:** ${err.message}` }] });
+        let helpMsg = err.message;
+        if (helpMsg.includes('Failed to fetch')) {
+          helpMsg += '\n\n> **해결 안내:** 회사 보안망에서 구글 AI 통신 주소(`generativelanguage.googleapis.com`)를 차단했거나 API 키에 오타가 있을 수 있습니다. 우측 상단 **[API / 설정]**에서 키를 다시 확인하거나 **우회 중계 URL**을 등록해 주세요.';
+        }
+        conversationHistory.push({ role: 'model', parts: [{ text: `**오류 발생:** ${helpMsg}` }] });
       }
       renderMessages(false);
     }
